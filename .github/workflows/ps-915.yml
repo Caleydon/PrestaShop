@@ -1,0 +1,50 @@
+name: Build PrestaShop Release 915
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'PrestaShop version tag (e.g. 9.1.5)'
+        required: true
+        default: '9.1.5'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.version }}
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sodium, zip, curl, gd, xml, mbstring, intl, bcmath
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Fix line endings in build scripts
+        run: |
+          sudo apt-get install -y dos2unix
+          dos2unix tools/build/Library/ReleaseCreator.php
+          dos2unix tools/build/CreateRelease.php
+
+      - name: Create release
+        run: php tools/build/CreateRelease.php --version="${{ github.event.inputs.version }}" --destination-dir="./release-output"
+
+      - name: Upload release ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: prestashop-${{ github.event.inputs.version }}
+          path: ./release-output/
+          retention-days: 90
